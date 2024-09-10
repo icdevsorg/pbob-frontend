@@ -59,6 +59,23 @@ function App() {
     return result;
   }
 
+  const fetchStats = async () => {
+    if (!backendActor) {
+      setStats(null);
+    }
+
+    try {
+      const statsResp = await backendActor.stats();
+      setStats(statsResp);
+    } catch (error) {
+      console.error('Failed to fetch stats:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchStats();
+  }, []);
+
   const handleMint = async () => {
     if (!connectedAccount) {
       alert('Please connect your wallet first.');
