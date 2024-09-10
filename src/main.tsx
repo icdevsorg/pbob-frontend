@@ -2,19 +2,25 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.scss';
-import { ActorProvider, AgentProvider } from '@ic-reactor/react';
-import { idlFactory, canisterId } from './declarations/backend';
+import '@nfid/identitykit/react/styles.css';
+import { IdentityKitProvider, IdentityKitTheme } from '@nfid/identitykit/react';
+import {
+  NFIDW,
+  IdentityKitAuthType,
+  Plug,
+  InternetIdentity,
+  // Stoic,
+} from '@nfid/identitykit';
 
-
-
-import { Principal } from '@dfinity/principal';
+const signers = [NFIDW, Plug, InternetIdentity];
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
-    <AgentProvider withProcessEnv>
-      <ActorProvider idlFactory={idlFactory} canisterId={canisterId}>
-        <App />
-      </ActorProvider>
-    </AgentProvider>
+    <IdentityKitProvider
+      signers={signers}
+      theme={IdentityKitTheme.DARK} // LIGHT, DARK, SYSTEM (by default)
+    >
+      <App />
+    </IdentityKitProvider>
   </React.StrictMode>,
 );
