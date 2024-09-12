@@ -11,7 +11,7 @@ import {Agent, Actor} from '@dfinity/agent';
 import { idlFactory as icpFactory} from './declarations/nns-ledger';
 import { _SERVICE as icpService } from './declarations/nns-ledger/index.d';
 
-import { idlFactory as bobFactory } from './declarations/bob';
+import { idlFactory as bobFactory, createActor as createbobTemp } from './declarations/bob';
 import { _SERVICE as bobService } from './declarations/bob/index.d';
 import {  Miner } from './declarations/bob/bob.did.d';
 
@@ -22,7 +22,7 @@ import {  Stats } from './declarations/backend/backend.did.d';
 const bobLedgerID = "7pail-xaaaa-aaaas-aabmq-cai";
 const icpCanisterID = "ryjl3-tyaaa-aaaaa-aaaba-cai";
 const bobCanisterID = "6lnhz-oaaaa-aaaas-aabkq-cai";
-const pbobCanisterID = "auotf-hqaaa-aaaas-aem7q-cai";
+const pbobCanisterID = "oqvo3-qqaaa-aaaas-aibca-cai";
 
 function App() {
   const [isConnected, setIsConnected] = useState(false);
@@ -36,6 +36,7 @@ function App() {
   const [miners, setMiners] = useState<Miner[]>([]);
 
   const [bobActor, setBobActor] = useState<bobService |null>(null);
+  const [bobActorTemp, setBobActorTemp] = useState<bobService |null>(null);
   const [pbobActor, setPBobActor] = useState<pbobService |null>(null);
   const [pbobActorTemp, setPBobActorTemp] = useState<pbobService |null>(null);
   const [icpActor, setIcpActor] = useState<icpService | null>(null);
@@ -101,7 +102,7 @@ function App() {
     fetchStats();
     //fetchMinters();
     // Note: If `fetchBalances` depends on `icpActor` or `icdvActor`, you should ensure it's capable of handling null values or wait until these values are not null.
-  }, [pbobActorTemp]);
+  }, [pbobActorTemp, bobActorTemp]);
 
   useEffect(() => {
     // This code runs after `icpActor` and `icdvActor` have been updated.
@@ -123,11 +124,22 @@ function App() {
   };
 
   const fetchStats = async () => {
+
+    if(bobActorTemp != null){
+      let miners = await bobActorTemp.get_miners(Principal.fromText(pbobCanisterID));
+      console.log ("Miners", miners);
+
+      console.log("Miners fetched:", miners);
+
+      await setMiners(miners);
+    };
     
 
     if(pbobActorTemp != null){
       let stats = await pbobActorTemp.stats();
       await setStats(stats);
+
+      
     };
   };
 
@@ -137,7 +149,12 @@ function App() {
       agentOptions:{host: "https://ic0.app"},
     });
 
+    const getBOBActor = await createbobTemp(bobCanisterID, {
+      agentOptions:{host: "https://ic0.app"},
+    });
+
     await setPBobActorTemp(getPBOBActor);
+    await setBobActorTemp(getBOBActor);
   };
 
   const setUpActors = async () => {
@@ -220,18 +237,7 @@ function App() {
       console.log("Balances fetched:", bobLedgerBalance, icpBalance, pbobLedgerBalance);
 
       await setBobLedgerBalance(bobLedgerBalance);
-      
 
-
-      let miners = await bobActor.get_miners(Principal.fromText(pbobCanisterID));
-      console.log ("Miners", miners);
-
-      console.log("Miners fetched:", miners);
-
-      await setMiners(miners);
-    
-    
-    
   };
 
 
@@ -450,6 +456,8 @@ function App() {
       <h1>pBob Pool</h1>
       <h2>Mine BOB with Frens</h2>
       <p><a href="https://oc.app/community/ajck3-xqaaa-aaaaf-bm5oq-cai" target="_blank">Join our OpenChat Group</a></p>
+
+      <p><b>Note: If you are missing pBob: the old pBob canister, tokens, rewards, and miners will be merged into this pool once the canister stops.</b></p>
       {stats ?(
 
           <div>
@@ -472,7 +480,9 @@ function App() {
       <h3>The BOB canister is not open sourced and is deployed and developed by an anon. <b>YOU SHOULD NEVER TRUST A CANISTER THAT IS NOT OPEN SOURCE WITH YOUR ASSETS.</b> It was not built by ICDevs.org, we don't know who built it, and we have no control over it. It very well may be a scam and you may lose any and all ICP sent to the canister. Expect to lose any funds deposited. Donations to ICDevs.org are non-refundable and benefit funding of public goods in the IC ecosystem.  By using this site or the pBob canister you acknowledge that ICDevs has warned you about the risks involved and you absolve ICDevs.org of any liability for your actions or the behavior of the pBob interface and canister.  This site is purely educational.</h3>
 
       <h4>When you mint a Bob Miner or Fund Cycles through the pBob pool you donate 0.4 ICP to ICDevs.org. This goes directly to an 8 year locked neuron and cannot be returned. The ICP is used to mint a Bob Miner and pay fees. When you withdraw your BOB, 1% is donated to ICDevs.org.</h4>
-      <p>The pBob canister is at auotf-hqaaa-aaaas-aem7q-cai - An ICRC-2 canister.</p>
+      <p>The pBob canister is at oqvo3-qqaaa-aaaas-aibca-cai - An ICRC-2 canister.</p>
+
+      
       
       <div className="card">
       </div>
@@ -494,23 +504,25 @@ function App() {
               </div>
             ) : (
               <div>
-              {/* <p>You can add a Miner to the pBob pool. <br/>Your principal is {yourPrincipal}</p>
-              <h2>Add a Minter and get ~900,000 pBob</h2>
-              <button onClick={handleMint} disabled={loading}>
-                {"Click here to add an Miner and mint $pBOB (1.4004 ICP)"}
-              </button> */}
-              <h1>CANISTER RESTARTING...PLEASE STAND BY</h1>
-              <p></p>
               <h2>Fund Cycles and get ~1,000,000 pBob</h2>
               <button onClick={handleFunding} disabled={loading}>
                 {"Click here to fund cycles and mint $pBOB (1.4004 ICP)"}
               </button>
+              <p></p>
+              <p>You can add a Miner to the pBob pool. <br/>Your principal is {yourPrincipal}</p>
+              <h2>Add a Minter and get ~900,000 pBob</h2>
+              <button onClick={handleMint} disabled={loading}>
+                {"Click here to add an Miner and mint $pBOB (1.4004 ICP)"}
+              </button>
+              
+              
                 
               </div>
             )}
           </div>
           <div className="card">
-            {share < 10_000 ? (
+            <p>Withdraws are currently halted until the merge. Current: {bigintToFloatString(share)}</p>
+            {/* {share < 10_000 ? (
               <div>
                 <p>You need more share of the pBob pool before you can withdraw Bob. Current: {bigintToFloatString(share)}</p>
               </div>
@@ -521,9 +533,14 @@ function App() {
                   {"Withdraw about " + bigintToFloatString(share) + " Bob"}
                 </button>
               </div>
-            )}
+            )} */}
           </div>
-          <div className="card">
+          
+          </>
+        )
+        }
+      </div>
+      {miners ? <div className="card">
             {miners.length > 0 ? (
               // iterate through the miners and list the details
               <div>
@@ -541,11 +558,7 @@ function App() {
                 <p>No miners.</p>
               </div>
               )}
-          </div>
-          </>
-        )
-        }
-      </div>
+          </div> : <div/>}
       <p className="read-the-docs">
         Built by ICDevs.org on top of Bob.fun with Motoko. Click logos to learn more.
       </p>

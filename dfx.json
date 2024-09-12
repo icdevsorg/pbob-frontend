@@ -8,6 +8,14 @@
         "node_compatibility": true
       }
     },
+    "pbob2": {
+      "type": "motoko",
+      "main": "backend/Backend.mo",
+      "gzip": true,
+      "declarations": {
+        "node_compatibility": true
+      }
+    },
     "frontend": {
       "dependencies": [],
       "type": "assets",

@@ -1,3 +1,6 @@
+dfx canister --network ic create --subnet bkfrj-6k62g-dycql-7h53p-atvkj-zg4to-gaogh-netha-ptybj-ntsgw-rqe
+
+
 # Vite + React + Motoko
 
 ### Get started directly in your browser:
