@@ -449,6 +449,7 @@ function App() {
       </div>
       <h1>pBob Pool</h1>
       <h2>Mine BOB with Frens</h2>
+      <p><a href="https://oc.app/community/ajck3-xqaaa-aaaaf-bm5oq-cai" target="_blank">Join our OpenChat Group</a></p>
       {stats ?(
 
           <div>
@@ -461,6 +462,8 @@ function App() {
             <tr><td>Total Bob Withdrawn: {bigintToFloatString(stats.totalBobWithdrawn)}</td></tr>
             <tr><td>Total Bob Distributed: {bigintToFloatString(stats.totalBobDist)}</td></tr>
             <tr><td>Total Cycles Funded: {stats.totalCyclesFunded.toString()}</td></tr>
+            <tr><td>Hashes Computed: {stats.hashesComputed.toString()}</td></tr>
+            <tr><td>Challenges Solved: {stats.solvedChallenges.toString()}</td></tr>
             </tbody>
             </table>
           </div>
@@ -468,7 +471,7 @@ function App() {
           }
       <h3>The BOB canister is not open sourced and is deployed and developed by an anon. <b>YOU SHOULD NEVER TRUST A CANISTER THAT IS NOT OPEN SOURCE WITH YOUR ASSETS.</b> It was not built by ICDevs.org, we don't know who built it, and we have no control over it. It very well may be a scam and you may lose any and all ICP sent to the canister. Expect to lose any funds deposited. Donations to ICDevs.org are non-refundable and benefit funding of public goods in the IC ecosystem.  By using this site or the pBob canister you acknowledge that ICDevs has warned you about the risks involved and you absolve ICDevs.org of any liability for your actions or the behavior of the pBob interface and canister.  This site is purely educational.</h3>
 
-      <h4>When you mint a Bob Miner through the pBob pool you donate 0.4 ICP to ICDevs.org. This goes directly to an 8 year locked neuron and cannot be returned. The ICP is used to mint a Bob Miner and pay fees. When you withdraw your BOB, 1% is donated to ICDevs.org.</h4>
+      <h4>When you mint a Bob Miner or Fund Cycles through the pBob pool you donate 0.4 ICP to ICDevs.org. This goes directly to an 8 year locked neuron and cannot be returned. The ICP is used to mint a Bob Miner and pay fees. When you withdraw your BOB, 1% is donated to ICDevs.org.</h4>
       <p>The pBob canister is at auotf-hqaaa-aaaas-aem7q-cai - An ICRC-2 canister.</p>
       
       <div className="card">
@@ -483,6 +486,7 @@ function App() {
             <h3>Your current $pBob Balance: {bigintToFloatString(pbobLedgerBalance)}</h3>
             <h3>Your current $Bob Balance: {bigintToFloatString(bobLedgerBalance)}</h3>
             <h3>Your current $ICP Balance: {bigintToFloatString(icpBalance)}</h3>
+            
             <div className="card">
             {icpBalance < 140030000 ? (
               <div>
@@ -490,18 +494,18 @@ function App() {
               </div>
             ) : (
               <div>
-              <p>You can add a Miner to the pBob pool. <br/>Your principal is {yourPrincipal}</p>
+              {/* <p>You can add a Miner to the pBob pool. <br/>Your principal is {yourPrincipal}</p>
+              <h2>Add a Minter and get ~900,000 pBob</h2>
               <button onClick={handleMint} disabled={loading}>
                 {"Click here to add an Miner and mint $pBOB (1.4004 ICP)"}
-              </button>
+              </button> */}
+              <h1>CANISTER RESTARTING...PLEASE STAND BY</h1>
               <p></p>
-              {
-                pbobLedgerBalance > 900_000_0000_0000n ? (
-                  <button onClick={handleFunding} disabled={loading}>
-                    {"Click here to fund cycles and mint $pBOB (1.4004 ICP)"}
-                  </button>
-                ) : (<p>Once you have more than 900,000 pBob you can mint by funding cycles.</p>)
-              }
+              <h2>Fund Cycles and get ~1,000,000 pBob</h2>
+              <button onClick={handleFunding} disabled={loading}>
+                {"Click here to fund cycles and mint $pBOB (1.4004 ICP)"}
+              </button>
+                
               </div>
             )}
           </div>

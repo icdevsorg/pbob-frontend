@@ -3,12 +3,13 @@
     "backend": {
       "type": "motoko",
       "main": "backend/Backend.mo",
+      "gzip": true,
       "declarations": {
         "node_compatibility": true
       }
     },
     "frontend": {
-      "dependencies": ["backend"],
+      "dependencies": [],
       "type": "assets",
       "source": ["dist/"]
     }
