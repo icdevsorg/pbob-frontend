@@ -6,7 +6,8 @@ import reactLogo from './assets/bob.png';
 import viteLogo from './assets/vite.svg';
 import { useQueryCall, useUpdateCall } from '@ic-reactor/react';
 import { Principal } from '@dfinity/principal';
-import {Agent, Actor} from '@dfinity/agent';
+import {Agent, Actor, Identity, HttpAgent} from '@dfinity/agent';
+import { AuthClient } from "@dfinity/auth-client";
 
 import { idlFactory as icpFactory} from './declarations/nns-ledger';
 import { _SERVICE as icpService } from './declarations/nns-ledger/index.d';
@@ -42,6 +43,8 @@ function App() {
   const [icpActor, setIcpActor] = useState<icpService | null>(null);
   const [bobLedgerActor, setBobLedgerActor] = useState<icpService | null>(null);
   const [yourPrincipal, setYourPrincipal] = useState<string>("null");
+  const [II, setII] = useState<Identity>();
+  const [IIAuthClient, setIIAuthClient] = useState<AuthClient>();
 
   function bigintToFloatString(bigintValue : bigint, decimals = 8) {
     const stringValue = bigintValue.toString();
@@ -119,8 +122,8 @@ function App() {
   }, [isConnected]);
 
   const fetchPrincipal = async () => {
-    if(!(await window.ic.plug.agent)) return;
-    setYourPrincipal((await window.ic.plug.agent.getPrincipal()).toString());
+    if(!isConnected) return;
+    setYourPrincipal(await window.ic.plug.isConnected() ? (await window.ic.plug.agent.getPrincipal()).toString() : (II?.getPrincipal())?.toString());
   };
 
   const fetchStats = async () => {
@@ -161,29 +164,54 @@ function App() {
 
     console.log("Setting up actors...", icpCanisterID, bobCanisterID, bobLedgerID, pbobCanisterID);
 
-    const getICPActor = await window.ic.plug.createActor({
+    const getICPActor = await window.ic.plug.isConnected() ? window.ic.plug.createActor({
       canisterId: icpCanisterID,
       interfaceFactory:icpFactory,
-    })
+    }) : 
+    Actor.createActor(icpFactory, {
+      agent: new HttpAgent({
+        identity: II,
+      }),
+      canisterId: icpCanisterID,
+    });
+    
 
     await setIcpActor(getICPActor);
 
-    const getPBOBActor = await window.ic.plug.createActor({
+    const getPBOBActor = await window.ic.plug.isConnected() ? await window.ic.plug.createActor({
       canisterId: pbobCanisterID,
       interfaceFactory: pbobFactory,
-    })
+    }) : 
+    Actor.createActor(pbobFactory, {
+      agent: new HttpAgent({
+        identity: II,
+      }),
+      canisterId: pbobCanisterID,
+    });
 
     await setPBobActor(getPBOBActor);
 
-    await setBobActor(await window.ic.plug.createActor({
+    await setBobActor(await window.ic.plug.isConnected() ? await window.ic.plug.createActor({
       canisterId: bobCanisterID,
       interfaceFactory: bobFactory,
+    }) :
+    Actor.createActor(bobFactory, {
+      agent: new HttpAgent({
+        identity: II,
+      }),
+      canisterId: bobCanisterID,
     }));
 
 
-    await setBobLedgerActor(await window.ic.plug.createActor({
+    await setBobLedgerActor(await window.ic.plug.isConnected() ? await window.ic.plug.createActor({
       canisterId: bobLedgerID,
       interfaceFactory: icpFactory,
+    }) :
+    Actor.createActor(icpFactory, {
+      agent: new HttpAgent({
+        identity: II,
+      }),
+      canisterId: bobLedgerID,
     }));
     
     console.log("actors", icpActor, bobLedgerActor, bobActor);
@@ -202,7 +230,7 @@ function App() {
 
 
     let icpBalance = await icpActor.icrc1_balance_of({
-      owner: await window.ic.plug.agent.getPrincipal(),
+      owner: await window.ic.plug.isConnected() ? await window.ic.plug.agent.getPrincipal() : II?.getPrincipal(),
       subaccount: [],
     });
     await setIcpBalance(icpBalance);
@@ -210,14 +238,14 @@ function App() {
     console.log("Fetching balances...", icpBalance);
 
     let bobLedgerBalance = await bobLedgerActor.icrc1_balance_of({
-          owner: await window.ic.plug.agent.getPrincipal(),
+          owner: await window.ic.plug.isConnected() ? await window.ic.plug.agent.getPrincipal() : II?.getPrincipal(),
           subaccount: [],
         });
 
     console.log("Fetching balances...", bobLedgerBalance);
     
     let pbobLedgerBalance = await pbobActor.icrc1_balance_of({
-      owner: await window.ic.plug.agent.getPrincipal(),
+      owner: await window.ic.plug.isConnected() ? await window.ic.plug.agent.getPrincipal() : II?.getPrincipal(),
       subaccount: [],
     });
 
@@ -226,7 +254,7 @@ function App() {
     console.log("Fetching balances...", pbobLedgerBalance);
 
     let share = await pbobActor.get_share_of({
-      owner: await window.ic.plug.agent.getPrincipal(),
+      owner: await window.ic.plug.isConnected() ? await window.ic.plug.agent.getPrincipal() : II?.getPrincipal(),
       subaccount: [],
     });
 
@@ -245,8 +273,14 @@ function App() {
   const handleLogout = async () => {
     setLoading(true);
     try {
-      await window.ic.plug.disconnect();
-      setIsConnected(false);
+      if (!await window.ic.plug.isConnected()) {
+        await IIAuthClient?.logout()
+        setIsConnected(false);
+      } else {
+        await window.ic.plug.disconnect();
+        setIsConnected(false);
+      }
+      
     } catch (error) {
       console.error('Logout failed:', error);
     } finally {
@@ -254,26 +288,44 @@ function App() {
     }
   };
 
-  const handleLogin = async () => {
+  const handleLogin = async (auth: string) => {
     setLoading(true);
       try {
-        const connected = await window.ic.plug.isConnected();
-        if (!connected) {
-          let pubkey = await window.ic.plug.requestConnect({
-            // whitelist, host, and onConnectionUpdate need to be defined or imported appropriately
-            whitelist: [bobCanisterID, icpCanisterID, bobLedgerID, pbobCanisterID],
-            host: "https://ic0.app",
-            onConnectionUpdate: async () => {
-              console.log("Connection updated", await window.ic.plug.isConnected());
-              await setIsConnected(!!await window.ic.plug.isConnected());
+        if (auth == "ii") {
+          const authClient = await AuthClient.create();
+          authClient.login({
+            // 7 days in nanoseconds
+            maxTimeToLive: BigInt(7 * 24 * 60 * 60 * 1000 * 1000 * 1000),
+            onSuccess: async () => {
+              setIsConnected(true)
             },
           });
-          console.log("Connected with pubkey:", pubkey);
-          await setIsConnected(true);
+          setIIAuthClient(authClient);
+          const identity = authClient.getIdentity();
+          setII(identity)
+          console.log("Hello", authClient.isAuthenticated(), identity)
         } else {
-          setIsConnected(true);
-          //await handleLogin();
-        };
+          if (auth == 'plug') {
+            const connected = await window.ic.plug.isConnected();
+            if (!connected) {
+              let pubkey = await window.ic.plug.requestConnect({
+                // whitelist, host, and onConnectionUpdate need to be defined or imported appropriately
+                whitelist: [bobCanisterID, icpCanisterID, bobLedgerID, pbobCanisterID],
+                host: "https://ic0.app",
+                onConnectionUpdate: async () => {
+                  console.log("Connection updated", await window.ic.plug.isConnected());
+                  setIsConnected(!!await window.ic.plug.isConnected());
+                },
+              });
+              console.log("Connected with pubkey:", pubkey);
+              setIsConnected(true);
+            } else {
+              setIsConnected(true);
+              //await handleLogin();
+            };
+          }
+        }
+        
       } catch (error) {
         console.error('Login failed:', error);
         setIsConnected(false);
@@ -412,7 +464,7 @@ function App() {
     try {
       // Assuming icpActor and icdvActor are already initialized actors
       const withdrawResult  = await pbobActor.withdraw({
-        owner: await window.ic.plug.agent.getPrincipal(),
+        owner: await window.ic.plug.isConnected() ? await window.ic.plug.agent.getPrincipal() : II?.getPrincipal(),
         subaccount: [],
       });
 
@@ -489,7 +541,10 @@ function App() {
       <div className="card">
         
         {!isConnected ? (
-          <button onClick={handleLogin} disabled={loading}>Login with Plug</button>
+          <>
+            <button onClick={() => handleLogin('plug')} disabled={loading}>Login with Plug</button>
+            <button onClick={() => handleLogin('ii')} disabled={loading}>Login with Internet Identity</button>
+          </>
         ) : (
           <>
             <button onClick={handleLogout} disabled={loading}>Logout</button>
