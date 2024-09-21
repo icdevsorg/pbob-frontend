@@ -2,8 +2,14 @@
   "backend": {
     "ic": "auotf-hqaaa-aaaas-aem7q-cai"
   },
+  "blocker": {
+    "ic": "3ob2f-lyaaa-aaaas-aio4q-cai"
+  },
   "frontend": {
     "ic": "t6ent-dqaaa-aaaak-ak6ua-cai"
+  },
+  "index": {
+    "ic": "lsklv-fiaaa-aaaas-aintq-cai"
   },
   "pbob2": {
     "ic": "oqvo3-qqaaa-aaaas-aibca-cai"

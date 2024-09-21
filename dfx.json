@@ -2,7 +2,7 @@
   "canisters": {
     "backend": {
       "type": "motoko",
-      "main": "backend/Backend.mo",
+      "main": "backend/oldbackend.mo",
       "gzip": true,
       "declarations": {
         "node_compatibility": true
@@ -16,10 +16,23 @@
         "node_compatibility": true
       }
     },
+    "blocker": {
+      "type": "motoko",
+      "main": "backend/blocker.mo",
+      "gzip": true,
+      "declarations": {
+        "node_compatibility": true
+      }
+    },
     "frontend": {
       "dependencies": [],
       "type": "assets",
       "source": ["dist/"]
+    },
+    "index": {
+      "type": "custom",
+      "candid": "index.did",
+      "wasm": "index.wasm.gz"
     }
   },
   "defaults": {
