@@ -18,6 +18,10 @@ import { idlFactory as bobFactory, createActor as createbobTemp } from './declar
 import { _SERVICE as bobService } from './declarations/bob/index.d';
 import {  Miner } from './declarations/bob/bob.did.d';
 
+import { idlFactory as subFactory, createActor as createSub } from './declarations/nnssub';
+import { _SERVICE as subService } from './declarations/nnssub/index.d';
+import {  SubscriptionStateShared, PaymentRecord, Subscription, SubscriptionRequest } from './declarations/nnssub/nnssub.did';
+
 import { idlFactory as bobInstanceFactory, createActor as createbobInstanceTemp } from './declarations/bobInstance';
 import { _SERVICE as bobServiceInstance } from './declarations/bobInstance/index.d';
 import {  Stats as InstanceStats } from './declarations/bobInstance/bobInstance.did.d';
@@ -32,6 +36,15 @@ const icpCanisterID = "ryjl3-tyaaa-aaaaa-aaaba-cai";
 const bobCanisterID = "6lnhz-oaaaa-aaaas-aabkq-cai";
 const pbobCanisterID = "oqvo3-qqaaa-aaaas-aibca-cai";
 const oldpbobCanisterID = "auotf-hqaaa-aaaas-aem7q-cai";
+const subCanisterID = "fe5iu-uiaaa-aaaal-ajxea-cai";
+
+const setAsideSubaccount = new Uint8Array([
+  0xc2, 0x99, 0xf3, 0xcd, 0x09, 0x60, 0x32, 0x88,
+  0xf7, 0x20, 0x88, 0x57, 0xc5, 0x2a, 0xef, 0xa1,
+  0xac, 0xee, 0x0e, 0xe9, 0xeb, 0xba, 0x54, 0xfd,
+  0x73, 0x05, 0x35, 0x4b, 0x29, 0x05, 0xe4, 0xc3
+]);
+
 
 function App() {
   const [authClient, setAuthClient] = useState<AuthClient | null>(null) ;
@@ -44,6 +57,10 @@ function App() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [minedBlocks, setMinedBlocks] = useState<bigint | null>(null);
   const [bShowMiners, setbShowMiners] = useState(false);
+  const [bShowSubs, setbShowSub] = useState(false);
+
+  const [subs, setSubs] = useState<Subscription[] | null>(null);
+  const [payments, setPayments] = useState<PaymentRecord[] | null>(null);
 
   type MinerStats = {
     [key: string]: InstanceStats;
@@ -54,6 +71,7 @@ function App() {
   const [miners, setMiners] = useState<Miner[]>([]);
 
   const [bobActor, setBobActor] = useState<bobService |null>(null);
+  const [subActor, setSubActor] = useState<subService |null>(null);
   const [bobActorTemp, setBobActorTemp] = useState<bobService |null>(null);
   const [pbobActor, setPBobActor] = useState<pbobService |null>(null);
   const [pbobActorTemp, setPBobActorTemp] = useState<pbobService |null>(null);
@@ -190,6 +208,18 @@ function App() {
 
   useEffect(() => {
     // This code runs after `icpActor` and `icdvActor` have been updated.
+    //console.log("actors updated", icpActor, bobActor, bobLedgerActor, pbobActor);
+    
+
+
+    fetchSubsStats();
+
+    //fetchMinters();
+    // Note: If `fetchBalances` depends on `icpActor` or `icdvActor`, you should ensure it's capable of handling null values or wait until these values are not null.
+  }, [bShowSubs]);
+
+  useEffect(() => {
+    // This code runs after `icpActor` and `icdvActor` have been updated.
     if (isConnected !== "none") {
       
       fetchPrincipal();
@@ -253,6 +283,47 @@ function App() {
     };
   };
 
+  const fetchSubsStats = async () => {
+    if(subActor != null){
+      let userSubs = await subActor.icrc79_get_user_subscriptions_0_0_1([{
+        products: [[ [products.Bob00625],[products.Bob025],[products.Bob1], [products.Bob4], [products.Bob16], [products.Bob64], [products.Bob256], [products.Bob1024] ]],
+        services: [], //todo: why doesn't service work?
+        status: [],
+        subaccounts: [],
+        subscriptions: [],
+      }],[],[]);
+      /* let userSubs = await subActor.icrc79_get_user_subscriptions_0_0_1([{
+        products: [[ [products.Bob00625],[products.Bob025],[products.Bob1], [products.Bob4], [products.Bob16], [products.Bob64], [products.Bob256], [products.Bob1024] ]],
+        services: [[Principal.fromText(bobCanisterID)]],
+        status: [],
+        subaccounts: [],
+        subscriptions: [],
+      }],[],[]); */
+
+      
+
+      let userPayments = await subActor.icrc79_get_user_payments_0_0_1([{
+        products: [[ [products.Bob00625],[products.Bob025],[products.Bob1], [products.Bob4], [products.Bob16], [products.Bob64], [products.Bob256], [products.Bob1024] ]],
+        services: [],
+        status: [],
+        subaccounts: [],
+        subscriptions: [],
+      }],[],[]);
+
+      console.log("subs fetched:", userSubs, userPayments);
+
+      //todo: get more if more than 1 page
+      if(userSubs.length > 0){
+        setSubs(userSubs);
+      };
+
+      //todo: get more if more than 1 page
+      if(userPayments.length > 0){
+        setPayments(userPayments);
+      };
+    };
+  };
+
   let buildMinerStats : MinerStats = {};
 
 
@@ -305,6 +376,11 @@ function App() {
         canisterId: bobLedgerID,
         interfaceFactory: icpFactory,
       }));
+
+      await setSubActor(await window.ic.plug.createActor({
+        canisterId: subCanisterID,
+        interfaceFactory: subFactory,
+      }));
     } else if(isConnected == "ii" && authClient != null){ 
 
       
@@ -339,9 +415,27 @@ function App() {
           identity: authClient.getIdentity()
           }
       }));
+
+      await setSubActor(createSub(subCanisterID , {
+        agentOptions: { 
+          host: "https://ic0.app",
+          identity: authClient.getIdentity()
+          }
+      }));
     };
     
     
+  };
+
+  let products = {
+    Bob00625  : 3848904803n,
+    Bob025    : 2239757053n,
+    Bob1      : 2090119593n,
+    Bob4      : 2090119596n,
+    Bob16     : 254469887n,
+    Bob64     : 254470050n,
+    Bob256    : 4102540085n,
+    Bob1024   : 2239795167n
   };
 
   const fetchBalances = async () => {
@@ -350,7 +444,7 @@ function App() {
     // This is a placeholder for actor creation and balance fetching
 
     console.log("Fetching balances...", icpActor, bobLedgerActor, pbobActor);
-    if(bobLedgerActor === null || icpActor === null || pbobActor === null || bobActor === null) return;
+    if(bobLedgerActor === null || icpActor === null || pbobActor === null || bobActor === null || subActor === null) return;
     // Fetch balances (assuming these functions return balances in a suitable format)
 
     let owner = await getPrincipalFromAgent();
@@ -397,6 +491,10 @@ function App() {
 
   const handleShowMiners = async () => {
     setbShowMiners(!bShowMiners);
+  };
+
+  const handleShowSubs = async () => {
+    setbShowSub(!bShowSubs);
   };
 
   const handleLogout = async () => {
@@ -483,8 +581,6 @@ function App() {
     if(amount === null) return;
 
     const amountInE8s = BigInt(Math.floor(Number(amount) * 100000000))
-
-    
       // Assuming icpActor and icdvActor are already initialized actors
       alert("This may take a while! If it fails, refresh and log back in as it may still execute on the back end.");
       const result = await icpActor.icrc1_transfer({
@@ -650,7 +746,7 @@ function App() {
         if("ok" in result){
           alert("Mint successful! Block: " + result.ok.toString() + ".");
         } else {  
-          alert("Mint failed! " + result.err.toString());
+          alert("Mint failed! " + JSON.stringify(result.err));
         };
         fetchBalances();
         fetchStats();
@@ -659,7 +755,7 @@ function App() {
       }
     } catch (error) {
       console.error('Minting failed:', error);
-      alert("An error occurred.");
+      alert("An error occurred." + JSON.stringify(error));
     } finally {
       setLoading(false);
       await fetchBalances();
@@ -737,13 +833,13 @@ function App() {
           alert("Mint unreachable:");
         } else {  
           console.log("fund failed", result);
-          alert("Mint failed! " + result.err.toString());
+          alert("Mint failed! " + JSON.stringify(result.err));
         };
         fetchBalances();
         fetchStats();
       } else {
         console.log("Approval failed", approvalResult); 
-        alert("Mint failed." + + approvalResult.Err.toString());
+        alert("Mint failed." + JSON.stringify(approvalResult.Err));
       }
     } catch (error) {
       console.error('Minting failed:', error);
@@ -752,6 +848,195 @@ function App() {
       setLoading(false);
       await fetchBalances();
       await fetchStats();
+    }
+  };
+
+
+
+  const handleSubscribe00625 = async () => {
+    handleSubscribe(6250000n, products.Bob00625);
+  };
+
+  const handleSubscribe025 = async () => {
+    handleSubscribe(25000000n, products.Bob025);
+  };
+
+  const handleSubscribe1 = async () => {
+    handleSubscribe(100000000n, products.Bob1);
+  };
+
+  const handleSubscribe4 = async () => {
+    handleSubscribe(400000000n,   products.Bob4);
+  };
+
+  const handleSubscribe16 = async () => {
+    handleSubscribe(1600000000n,  products.Bob16);
+  };
+
+  const handleSubscribe64 = async () => {
+    handleSubscribe(6400000000n, products.Bob64);
+  };
+
+  const handleSubscribe256 = async () => {
+    handleSubscribe(25600000000n, products.Bob256);
+  };
+
+  const handleSubscribe1024 = async () => {
+    handleSubscribe(102400000000n, products.Bob1024);
+  };
+
+  const handleSubscribe = async (amount : bigint, product: bigint) => {
+    if (isConnected == "none") {
+      alert("Please connect your wallet first.");
+      return;
+    }
+
+    const amountInE8s = amount;
+
+    if (amountInE8s + 30000n > icpBalance) {
+      alert("You do not have enough ICP. Please have " + bigintToFloatString(amountInE8s + 30000n, 8) + " ICP in your account.");
+      return;
+    }
+
+    if(!icpActor || !pbobActor || !subActor) return;
+
+    setLoading(true);
+
+    alert("WARNING: ALPHA software. The NNS Subscription Utility is in alpha status. We do not recommend attaching large amounts of ICP to the account used to interact with this canister at the moment. USE AT YOUR OWN RISK. About Subscriptions: The subscription canister is controlled by the NNS. We will approve 10 years worth of ICP for the subscription. You may cancel at any time. The canister cannot take more than the specified amount per day. The developer has no access to change or modify this code so you may approve this amount with confidence.");
+
+    try {
+      // Assuming icpActor and icdvActor are already initialized actors
+      const approvalResult  = await icpActor.icrc2_approve({
+        amount: amountInE8s * 12n * 365n * 10n + (10000n * 12n * 365n * 10n),
+        // Adjust with your canister ID and parameters
+        spender: {
+          owner: await Principal.fromText(subCanisterID),
+          subaccount: [],
+        },
+        memo: [new Uint8Array([2,6,9,4,3,89,23])],
+        fee: [10000n],
+        created_at_time: [],
+        expires_at: [],
+        expected_allowance: [],
+        from_subaccount: [],
+      });
+
+      if ("Ok" in approvalResult) {
+        alert("This may take a while! Your ICP has been authorized for a subscription. Please click ok and wait for the transaction to complete. The Initial transaction may take up to 5 minutes. Your transactions will complete. Your pBob will be minted when the pool processes your subscription payment which may take up to 24 Hours. Check the Payments pane for payment processing.");
+
+        let request : SubscriptionRequest = [[
+          {amountPerInterval: amountInE8s},
+          {interval: {Daily: null}},
+          {memo: new Uint8Array([2,6,9,4,3,89,23])},
+          { productId: product},
+          {serviceCanister: Principal.fromText(pbobCanisterID)},
+          {targetAccount: {
+            owner : Principal.fromText(pbobCanisterID), 
+            subaccount : [setAsideSubaccount]}
+          },
+          {tokenCanister: Principal.fromText(icpCanisterID)}
+        ]];
+
+        let result = await subActor.icrc79_subscribe_0_0_1(request);
+
+        if(!result || result.length == 0 || !result[0] || result[0].length == 0 || !result[0][0]){
+          console.log("Subscribe failed", JSON.stringify(result));  
+          alert("Mint failed! Subscription failed.");
+          return;
+        };
+
+        if("Ok" in result[0][0] ){
+          alert("Subscription successful! SubscriptionId: " + result[0][0].Ok.subscriptionId + ".");
+        } else {  
+          console.log("Subscribe failed", JSON.stringify(result));
+          if("Err" in result){
+            alert("Mint failed! " + JSON.stringify(result.Err));
+          };
+        };
+        fetchBalances();
+        fetchStats();
+      } else {
+        console.log("Subscription failed", approvalResult); 
+        alert("Subscription failed." + JSON.stringify(approvalResult.Err));
+      }
+    } catch (error) {
+      console.error('Subscription failed:', error);
+      alert("An error occurred.");
+    } finally {
+      setLoading(false);
+      await fetchBalances();
+      await fetchStats();
+    }
+  };
+
+  const handleUnsubscribe = async (subscriptionId: bigint) => {
+    if (isConnected == "none") {
+      alert("Please connect your wallet first.");
+      return;
+    }
+
+    if(!subActor) return;
+
+    setLoading(true);
+    try {
+      // Assuming icpActor and icdvActor are already initialized actors
+      const result = await subActor.icrc79_cancel_subscription_0_0_1([{
+        reason: "user action",
+        subscriptionId: subscriptionId,
+      }]
+      );
+
+      if (result && result.length > 0 && result[0][0] && "Ok" in result[0][0]) {
+        alert("Unsubscribe successful.");
+        fetchBalances();
+        fetchStats();
+        fetchSubsStats();
+      } else if(result && result.length > 0&& result[0][0] && "Err" in result[0][0]){ 
+        alert("Unsubscribe failed." + JSON.stringify(result[0][0].Err));
+      } else {
+        alert("Unsubscribe failed.");
+      }
+    } catch (error) {
+      console.error('Unsubscribe failed:', JSON.stringify(error));
+      alert("An error occurred." + JSON.stringify(error));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePause = async (subscriptionId: bigint, toggle: boolean) => {
+    if (isConnected == "none") {
+      alert("Please connect your wallet first.");
+      return;
+    }
+
+    if(!subActor) return;
+
+    setLoading(true);
+    try {
+      // Assuming icpActor and icdvActor are already initialized actors
+      const result = await subActor.icrc79_pause_subscription_0_0_1([{
+        active: toggle,
+        reason: "user action",
+        subscriptionId: subscriptionId,
+      }]
+      );
+
+      if (result && result.length > 0 && "Ok" in result[0]) {
+        alert("Status Update successful.");
+        fetchBalances();
+        fetchStats();
+        fetchSubsStats();
+      } else if(result && result.length > 0 && "Err" in result[0]){ 
+        alert("Status Update failed." + JSON.stringify(result[0].Err));
+      } else {
+        alert("Status Update failed.");
+      }
+    } catch (error) {
+      console.error('Status Update failed:', JSON.stringify(error));
+      alert("An error occurred." + JSON.stringify(error));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -777,11 +1062,11 @@ function App() {
         alert("Your Bob has been sent to your account.");
         fetchBalances();
       } else {
-        alert("Withdraw failed." + withdrawResult.err);
+        alert("Withdraw failed." + JSON.stringify(withdrawResult.err));
       }
     } catch (error) {
       console.error('Withdraw failed:', error);
-      alert("An error occurred.");
+      alert("An error occurred." + JSON.stringify(error));
     } finally {
       setLoading(false);
     }
@@ -861,54 +1146,120 @@ function App() {
             {isConnected == "ii" ? (<button onClick={handleSendICP} disabled={loading}>Send ICP</button>) : (<div />)}
             
             <div className="card">
-            {icpBalance < 140040000 ? (
-              <div>
-                <p>You need more ICP to add a Bob Miner to the pBob pool. Send At least 1.4004 ICP to your principal. Your principal is<br/> <b>{yourPrincipal}</b></p>
+              <div className="card">
+                <h2>Mint Subscriptions</h2>
+                {icpBalance < 6580000 ? (
+                  <div>
+                    <p>You need more ICP subscribe to the pBob pool. Send At least 0.0527 ICP to your principal. Your principal is<br/> <b>{yourPrincipal}</b></p>
+                  </div>
+                ) : (
+                  <div>
+                  <p>You can fund our Miners on a daily basis. <br/>Your principal is {yourPrincipal}</p>
+
+                  <h2>Subscribe and get ~37,000 pBob per Day</h2>
+                  <button onClick={handleSubscribe00625} disabled={loading}>
+                    {"Click here to subscribe at 0.0625 ICP a day)"}
+                  </button>
+                  <p></p>
+                  <h2>Subscribe and get ~172,000 pBob per Day</h2>
+                  <button onClick={handleSubscribe025} disabled={loading}>
+                    {"Click here to subscribe at 0.25 ICP a day)"}
+                  </button>
+                  <p></p>
+                  <h2>Subscribe and get ~788,888 pBob per Day</h2>
+                  <button onClick={handleSubscribe1} disabled={loading}>
+                    {"Click here to subscribe at 1 ICP a day)"}
+                  </button>
+                  <p></p>
+                  <h2>Subscribe and get ~3,500,000 pBob per Day</h2>
+                  <button onClick={handleSubscribe4} disabled={loading}>
+                    {"Click here to subscribe at 4 ICP a day)"}
+                  </button>
+                  <p></p>
+                  <h2>Subscribe and get ~14,970,000 pBob per Day</h2>
+                  <button onClick={handleSubscribe16} disabled={loading}>
+                    {"Click here to subscribe at 16 ICP a day)"}
+                  </button>
+                  <p></p>
+                  <h2>Subscribe and get ~61,460,000 pBob per Day</h2>
+                  <button onClick={handleSubscribe64} disabled={loading}>
+                    {"Click here to subscribe at 64 ICP a day)"}
+                  </button>
+                  <p></p>
+                  <h2>Subscribe and get ~249,000,000 pBob per Day</h2>
+                  <button onClick={handleSubscribe256} disabled={loading}>
+                    {"Click here to subscribe at 256 ICP a day)"}
+                  </button>
+                  <p></p>
+                  <h2>Subscribe and get ~1,000,000,000 pBob per Day</h2>
+                  <button onClick={handleSubscribe1024} disabled={loading}>
+                    {"Click here to subscribe at 1024 ICP a day)"}
+                  </button>
+                  <p></p>
+                  {/* <p>You can add a Miner to the pBob pool. <br/>Your principal is {yourPrincipal}</p>
+                  <h2>Add a Minter and get ~500,000 pBob</h2>
+                  <button onClick={handleMint} disabled={loading}>
+                    {"Click here to add an Miner and mint $pBOB (1.4004 ICP)"}
+                  </button> */}
+            
+                  
+                    
+                  </div>
+                )}
               </div>
-            ) : (
-              <div>
-              <p>You can fund our Miners in the Pool with cycles. <br/>Your principal is {yourPrincipal}</p>  
-              <h2>Fund Cycles and get ~1,000,000 pBob</h2>
-              <button onClick={handleFunding1} disabled={loading}>
-                {"Click here to fund cycles and mint $pBOB (1.4004 ICP - 40% donation)"}
-              </button>
-              <p></p>
-              <h2>Fund Cycles and get ~4,000,000 pBob</h2>
-              <button onClick={handleFunding4} disabled={loading}>
-                {"Click here to fund cycles and mint $pBOB (5.2004 ICP - 30% donation)"}
-              </button>
-              <p></p>
-              <h2>Fund Cycles and get ~16,000,000 pBob</h2>
-              <button onClick={handleFunding16} disabled={loading}>
-                {"Click here to fund cycles and mint $pBOB (19.2004 ICP - 20% donation)"}
-              </button>
-              <p></p>
-              <h2>Fund Cycles and get ~64,000,000 pBob</h2>
-              <button onClick={handleFunding64} disabled={loading}>
-                {"Click here to fund cycles and mint $pBOB (70.4004 ICP - 10% donation)"}
-              </button>
-              <p></p>
-              <h2>Fund Cycles and get ~256,000,000 pBob</h2>
-              <button onClick={handleFunding256} disabled={loading}>
-                {"Click here to fund cycles and mint $pBOB (268.8004 ICP - 5% donation)"}
-              </button>
-              <p></p>
-              <h2>Fund Cycles and get ~1,024,000,000 pBob</h2>
-              <button onClick={handleFunding1024} disabled={loading}>
-                {"Click here to fund cycles and mint $pBOB (1,049.6004 ICP - 2.5% donation)"}
-              </button>
-              <p></p>
-              {/* <p>You can add a Miner to the pBob pool. <br/>Your principal is {yourPrincipal}</p>
-              <h2>Add a Minter and get ~500,000 pBob</h2>
-              <button onClick={handleMint} disabled={loading}>
-                {"Click here to add an Miner and mint $pBOB (1.4004 ICP)"}
-              </button> */}
-        
-              
-                
+              <div className="card">
+                <h2>One Time Mint</h2>
+
+                {icpBalance < 140040000 ? (
+                  <div>
+                    <p>You need more ICP to add a Bob Miner to the pBob pool. Send At least 1.4004 ICP to your principal. Your principal is<br/> <b>{yourPrincipal}</b></p>
+                  </div>
+                ) : (
+                  <div>
+                  <p>You can fund our Miners in the Pool with cycles. <br/>Your principal is {yourPrincipal}</p>  
+                  <h2>Fund Cycles and get ~1,000,000 pBob</h2>
+                  <button onClick={handleFunding1} disabled={loading}>
+                    {"Click here to fund cycles and mint $pBOB (1.4004 ICP - 40% donation)"}
+                  </button>
+                  <p></p>
+                  <h2>Fund Cycles and get ~4,000,000 pBob</h2>
+                  <button onClick={handleFunding4} disabled={loading}>
+                    {"Click here to fund cycles and mint $pBOB (5.2004 ICP - 30% donation)"}
+                  </button>
+                  <p></p>
+                  <h2>Fund Cycles and get ~16,000,000 pBob</h2>
+                  <button onClick={handleFunding16} disabled={loading}>
+                    {"Click here to fund cycles and mint $pBOB (19.2004 ICP - 20% donation)"}
+                  </button>
+                  <p></p>
+                  <h2>Fund Cycles and get ~64,000,000 pBob</h2>
+                  <button onClick={handleFunding64} disabled={loading}>
+                    {"Click here to fund cycles and mint $pBOB (70.4004 ICP - 10% donation)"}
+                  </button>
+                  <p></p>
+                  <h2>Fund Cycles and get ~256,000,000 pBob</h2>
+                  <button onClick={handleFunding256} disabled={loading}>
+                    {"Click here to fund cycles and mint $pBOB (268.8004 ICP - 5% donation)"}
+                  </button>
+                  <p></p>
+                  <h2>Fund Cycles and get ~1,024,000,000 pBob</h2>
+                  <button onClick={handleFunding1024} disabled={loading}>
+                    {"Click here to fund cycles and mint $pBOB (1,049.6004 ICP - 2.5% donation)"}
+                  </button>
+                  <p></p>
+                  {/* <p>You can add a Miner to the pBob pool. <br/>Your principal is {yourPrincipal}</p>
+                  <h2>Add a Minter and get ~500,000 pBob</h2>
+                  <button onClick={handleMint} disabled={loading}>
+                    {"Click here to add an Miner and mint $pBOB (1.4004 ICP)"}
+                  </button> */}
+            
+                  
+                    
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            </div>
+         
           <div className="card">
             
              {share < 10_000 ? (
@@ -929,6 +1280,77 @@ function App() {
         )
         }
       </div>
+      { isConnected !== "none" ?
+        <div>
+          <div>
+            <button onClick={handleShowSubs} disabled={loading}>Show Subscription Details</button>
+          </div>
+          {
+            bShowSubs ? 
+            <div className="card">
+              <h2>Subscriptions</h2>
+
+              <table align='center'>
+                <thead><tr><th>ID</th><th>Status</th><th>Amount</th><th>Action</th></tr></thead>
+                <tbody>
+                  {subs ? subs.map((sub) => (
+                  <tr key={sub.subscriptionId.toString()}>
+                    <td>{sub.subscriptionId.toString()}</td>
+                    <td>
+                      {"Active" in sub.status ? <p>Active</p> : <div/>} 
+                      {"Canceled" in sub.status ? <p>Canceled</p> : <div/>}
+                      {"WillCancel" in sub.status ? <p>Canceled</p> : <div/>}
+                      {"Paused" in sub.status ? <p>Paused</p> : <div/>}
+                    </td>
+                    <td>{bigintToFloatString(sub.amountPerInterval,8)}</td>
+                    <td>
+                      {"Active" in sub.status ? 
+                        <div>
+                          <button onClick={() => handleUnsubscribe(sub.subscriptionId)} disabled={loading}>Cancel</button><p></p>
+                          <button onClick={() => handlePause(sub.subscriptionId, false)} disabled={loading}>Pause</button>
+                        </div> : <div/>
+                      } 
+                      {"Canceled" in sub.status ? <p>Canceled</p> : <div/>}
+                      {"WillCancel" in sub.status ? <p>Canceled</p> : <div/>}
+                      {"Paused" in sub.status ? 
+                      <div>
+                          <button onClick={() => handleUnsubscribe(sub.subscriptionId)} disabled={loading}>Cancel</button><p></p>
+                          <button onClick={() => handlePause(sub.subscriptionId, true)} disabled={loading}>Pause</button>
+                      </div> : <div/>
+                      }
+                    </td>
+                  </tr>
+                
+                )) : <tr/>}
+                </tbody>
+              </table>
+
+              <h2>Payments Made</h2>
+
+              <table align='center'>
+                <thead><tr><th>ID</th><th>Sub ID</th><th>Date</th><th>Amount(ICP)</th><th>Result</th><th>Ledger Trxs</th></tr></thead>
+                <tbody>
+                  {payments ? payments.map((payment) => (
+                  <tr key={payment.paymentId.toString()}>
+                    <td>{payment.paymentId.toString()}</td>
+                    <td>{payment.subscriptionId.toString()}</td>
+                    <td>{ (new Date(Number(payment.date) / 1000000)).toDateString()}</td>
+                    <td>{bigintToFloatString((payment.amount + (payment.fee?.[0] ?? 0n)), 8)}</td>
+                    <td>
+                      {"Ok" in payment.result ? <p>Success</p> : <div/>}
+                      {"Err" in payment.result ? <p>Failed</p> : <div/>}
+                    </td>
+                    <td>{payment.ledgerTransactionId?.toString() ?? "N/A"} - {payment.feeTransactionId?.toString() ?? "N/A"}</td>
+                  </tr>
+                
+                )) : <tr/>}
+                </tbody>
+              </table>
+
+            </div> : <div/>
+
+          } </div>: <div/> 
+      }
       {miners ? <div className="card">
             {miners.length > 0 && bShowMiners ? (
                 
